@@ -1,0 +1,24 @@
+.DS_Store
+Thumbs.db
+
+# Local secrets
+.env
+web/.env
+
+# Dependencies
+node_modules/
+web/node_modules/
+
+# Build output
+dist/
+web/dist/
+
+# Logs and local caches
+*.log
+.vite/
+.cache/
+
+# Archives and temporary database dumps
+*.zip
+*.dump
+restore_from_dump*.sql
