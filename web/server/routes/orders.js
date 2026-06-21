@@ -44,6 +44,7 @@ async function resolveOrderPayload(body) {
   const maghe = normalizeText(body.maghe);
   const mapr = normalizeText(body.mapr);
   const sdt = normalizeText(body.sdt);
+  const sudunggoi = body.sudunggoi === true || body.sudunggoi === 'true';
   let hoten = normalizeText(body.hoten);
   let makh = requestedCustomerId;
 
@@ -60,25 +61,31 @@ async function resolveOrderPayload(body) {
     const [customer] = await query('SELECT hoten, sdt FROM khachhang WHERE makh = $1', [makh]);
     if (customer) {
       hoten = hoten || customer.hoten;
-      return { maorder, makh, hoten, madv, maghe, mapr, sdt: sdt || customer.sdt || null };
+      return { maorder, makh, hoten, madv, maghe, mapr, sdt: sdt || customer.sdt || null, sudunggoi };
     }
     if (!hoten) {
       throw new Error('Ma khach hang chua ton tai, can nhap ho ten hoac de trong ma KH de he thong tu sinh.');
     }
-    return { maorder, makh, hoten, madv, maghe, mapr, sdt };
+    if (sudunggoi) {
+      throw new Error('Chi duoc dung goi voi ma khach hang da ton tai va dang co goi hoat dong.');
+    }
+    return { maorder, makh, hoten, madv, maghe, mapr, sdt, sudunggoi: false };
   }
 
+  if (sudunggoi) {
+    throw new Error('Muon dung goi thi phai nhap ma KH da co goi hoat dong.');
+  }
   if (!hoten) {
     throw new Error('Can nhap ho ten khi tao khach moi.');
   }
   makh = await generateUnusedCustomerId();
-  return { maorder, makh, hoten, madv, maghe, mapr, sdt };
+  return { maorder, makh, hoten, madv, maghe, mapr, sdt, sudunggoi: false };
 }
 
 router.get('/', asyncHandler(async (req, res) => {
   const status = req.query.status;
   const rows = await query(`
-    SELECT o.maorder, o.status, o.giobatdau, o.gioketthuc, o.thoigiantt, o.hinhthuctt,
+    SELECT o.maorder, o.status, o.giobatdau, o.gioketthuc, o.thoigiantt, o.hinhthuctt, o.sudunggoi,
            o.thoigiandat, o.madv, dv.tendv, o.makh, kh.hoten, kh.sdt, o.maghe, o.mapr, o.manv
     FROM orders o
     JOIN khachhang kh ON kh.makh = o.makh
@@ -91,11 +98,14 @@ router.get('/', asyncHandler(async (req, res) => {
 
 router.get('/:maorder/bill', asyncHandler(async (req, res) => {
   const [summary] = await query(`
-    SELECT o.maorder, o.status, o.makh, kh.hoten, kh.rank, o.giobatdau,
+    SELECT o.maorder, o.status, o.makh, kh.hoten, kh.rank, o.giobatdau, o.gioketthuc, o.sudunggoi,
            o.madv, dv.tendv, dv.giagoi::numeric AS gia_dv,
            fn_tinh_discount(o.makh)::numeric AS discount,
            fn_kiem_tra_goi(o.makh) AS co_goi,
-           fn_tinh_phat_qua_gio(o.madv, o.giobatdau, NOW()::timestamp)::numeric AS phat_qua_gio
+           CASE
+             WHEN o.sudunggoi THEN 0
+             ELSE fn_tinh_phat_qua_gio(o.madv, o.giobatdau, NOW()::timestamp)::numeric
+           END AS phat_qua_gio
     FROM orders o
     JOIN khachhang kh ON kh.makh = o.makh
     JOIN dichvu dv ON dv.madv = o.madv
@@ -119,7 +129,7 @@ router.get('/:maorder/bill', asyncHandler(async (req, res) => {
     ORDER BY ct.mavp
   `, [req.params.maorder]);
 
-  const tienDv = summary.co_goi ? 0 : Number(summary.gia_dv || 0);
+  const tienDv = summary.sudunggoi ? 0 : Number(summary.gia_dv || 0);
   const tienVp = items.reduce((sum, item) => sum + Number(item.thanhtien || 0), 0);
   const phatQuaGio = Number(summary.phat_qua_gio || 0);
   const discount = Number(summary.discount || 0);
@@ -149,16 +159,16 @@ router.get('/next-id', asyncHandler(async (_req, res) => {
 }));
 
 router.post('/create', asyncHandler(async (req, res) => {
-  const { maorder, makh, hoten, madv, maghe, mapr, sdt } = await resolveOrderPayload(req.body);
-  const [row] = await query('SELECT fn_tao_order($1,$2,$3,$4,$5,$6,$7) AS message', [
-    maorder, makh, hoten, madv, maghe, mapr, sdt
+  const { maorder, makh, hoten, madv, maghe, mapr, sdt, sudunggoi } = await resolveOrderPayload(req.body);
+  const [row] = await query('SELECT fn_tao_order($1,$2,$3,$4,$5,$6,$7,$8) AS message', [
+    maorder, makh, hoten, madv, maghe, mapr, sdt, sudunggoi
   ]);
   sendOk(res, { ...row, maorder, makh });
 }));
 
 router.post('/reserve', asyncHandler(async (req, res) => {
   const { thoigiandat } = req.body;
-  const { maorder, makh, hoten, madv, maghe, mapr, sdt } = await resolveOrderPayload(req.body);
+  const { maorder, makh, hoten, madv, maghe, mapr, sdt, sudunggoi } = await resolveOrderPayload(req.body);
   const reservedAt = thoigiandat ? new Date(thoigiandat) : new Date();
   const now = new Date();
   const maxReservation = new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000);
@@ -185,10 +195,11 @@ router.post('/reserve', asyncHandler(async (req, res) => {
       $5::varchar(6),
       $6::varchar(6),
       $7::varchar(10),
-      $8::timestamp
+      $8::timestamp,
+      $9::boolean
     ) AS message
   `, [
-    maorder, makh, hoten, madv, maghe, mapr, sdt, reservedAt
+    maorder, makh, hoten, madv, maghe, mapr, sdt, reservedAt, sudunggoi
   ]);
   sendOk(res, { ...row, maorder, makh });
 }));

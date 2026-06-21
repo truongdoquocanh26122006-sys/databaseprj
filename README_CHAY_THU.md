@@ -12,6 +12,7 @@ Thu muc nay gom:
 - `database/add_accounts_auth.sql`: bang tai khoan dang nhap, seed tai khoan nhan vien mac dinh.
 - `database/fix_seat_suggestion_groups.sql`: sua goi y xep cho nhieu nguoi phong chung va loai cho bat ky.
 - `database/fix_understaffed_shift_view.sql`: sua ca thieu nguoi de luon hien lich 1 thang toi; ca chua co nhan vien se hien `Chua co nguoi`.
+- `database/fix_package_order_usage_and_shift_guard.sql`: them lua chon dung goi theo tung order, han dung goi theo ngay ket thuc goi, va chan nhan ca trong qua khu.
 
 ## 1. Yeu cau tren may nguoi chay
 
@@ -58,6 +59,7 @@ psql -U postgres -d namt_studyspace -f database/fix_understaffed_shift_view.sql
 psql -U postgres -d namt_studyspace -f database/fix_room_occupancy_sync.sql
 psql -U postgres -d namt_studyspace -f database/add_overtime_penalty.sql
 psql -U postgres -d namt_studyspace -f database/reclaim_overdue_places_when_full.sql
+psql -U postgres -d namt_studyspace -f database/fix_package_order_usage_and_shift_guard.sql
 ```
 
 Neu PostgreSQL cua may dung port/user khac, sua lai `-U postgres` hoac them `-h localhost -p 5432`.
@@ -161,6 +163,8 @@ npm run build
 - Tab `Orders` chi tao order su dung cho ngoi/phong, hien chi cho chon `DV01` va `DV02`.
 - `DV03` va `DV04` la goi hoat dong; dang ky va gia han thuc hien trong tab `Goi`. Chuc nang huy goi da tat de khong phai mo rong schema trang thai.
 - Backend va trigger PostgreSQL deu chan viec tao order moi bang `DV03` hoac `DV04`.
+- Neu khach co goi hoat dong, khi tao order co the chon `Dung goi`. Lua chon nay duoc luu tren tung order bang `orders.sudunggoi`, khong tu dong mien phi tat ca order cua khach.
+- Order dung goi lay han su dung theo `goihoatdong.ngayketthuc`; khong bi tinh phat qua gio theo moc 3h/5h cua `DV01`/`DV02`. Neu khong chon dung goi, order van tinh tien dich vu va phat qua gio nhu binh thuong.
 
 ## 10. Quy tac kho va vat pham
 
@@ -183,6 +187,7 @@ npm run build
 - Neu chua co nhan vien nao nhan ca, he thong van hien ca do voi trang thai `Chua co nguoi`, so NV = 0 va thieu 3.
 - Khi nhan ca cho mot ngay/ca chua co san trong bang `calam`, backend tu tao dong ca roi moi them nhan vien vao `dilam`.
 - Database van chan moi ca vuot qua 3 nhan vien qua trigger `trg_check_ca_day`.
+- Backend va trigger database deu chan nhan ca trong qua khu.
 
 ## 13. Ghi chu ve khach hang va tinh tien
 

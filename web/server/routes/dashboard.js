@@ -30,7 +30,7 @@ router.get('/', asyncHandler(async (_req, res) => {
   `);
 
   const recentOrders = await query(`
-    SELECT o.maorder, o.status, o.giobatdau, o.gioketthuc, o.hinhthuctt,
+      SELECT o.maorder, o.status, o.giobatdau, o.gioketthuc, o.hinhthuctt, o.sudunggoi,
            kh.hoten, kh.sdt, dv.tendv, o.maghe, o.mapr
     FROM orders o
     JOIN khachhang kh ON kh.makh = o.makh
@@ -53,7 +53,12 @@ router.get('/lookups', asyncHandler(async (_req, res) => {
       WHERE madv NOT IN ('DV03', 'DV04')
       ORDER BY madv
     `),
-    query('SELECT makh, hoten, sdt, rank, diemtichluy FROM khachhang ORDER BY makh DESC LIMIT 100'),
+    query(`
+      SELECT makh, hoten, sdt, rank, diemtichluy, fn_kiem_tra_goi(makh) AS co_goi
+      FROM khachhang
+      ORDER BY makh DESC
+      LIMIT 100
+    `),
     query('SELECT mavp, tenvp, giatien::numeric AS giatien, soluong, makho FROM vatpham ORDER BY mavp'),
     query('SELECT manv, tennv, hesoluong FROM nhanvien ORDER BY manv'),
     query(`
@@ -70,7 +75,7 @@ router.get('/lookups', asyncHandler(async (_req, res) => {
         FROM ghe g
         JOIN orders o ON o.maghe = g.maghe
         WHERE o.status = 'Dang dung'
-          AND fn_tinh_phat_qua_gio(o.madv, o.giobatdau, NOW()::timestamp) > 0
+          AND fn_order_co_the_thu_hoi(o.maorder)
       )
       SELECT * FROM free_seats
       UNION ALL
@@ -95,7 +100,7 @@ router.get('/lookups', asyncHandler(async (_req, res) => {
         FROM phongrieng pr
         JOIN orders o ON o.mapr = pr.mapr
         WHERE o.status = 'Dang dung'
-          AND fn_tinh_phat_qua_gio(o.madv, o.giobatdau, NOW()::timestamp) > 0
+          AND fn_order_co_the_thu_hoi(o.maorder)
       )
       SELECT * FROM free_rooms
       UNION ALL
@@ -104,7 +109,7 @@ router.get('/lookups', asyncHandler(async (_req, res) => {
       ORDER BY mapr
     `),
     query(`
-      SELECT maorder, makh, status
+      SELECT maorder, makh, status, sudunggoi
       FROM orders
       WHERE status IN ('Dang dung', 'Dat truoc')
         AND madv NOT IN ('DV03', 'DV04')

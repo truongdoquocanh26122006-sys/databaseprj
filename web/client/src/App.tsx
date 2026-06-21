@@ -596,7 +596,7 @@ function Overview({ data }: { data?: AnyRow }) {
 }
 
 function Orders({ data, lookups, submit }: { data: AnyRow[]; lookups: AnyRow; submit: SubmitFn }) {
-  const [form, setForm] = useState({ maorder: '', makh: '', hoten: '', sdt: '', madv: 'DV01', maghe: '', mapr: '', thoigiandat: localDateTimeInput(60) });
+  const [form, setForm] = useState({ maorder: '', makh: '', hoten: '', sdt: '', madv: 'DV01', maghe: '', mapr: '', thoigiandat: localDateTimeInput(60), sudunggoi: 'false' });
   const [item, setItem] = useState({ maorder: '', mavp: 'VP01', soluong: '1' });
   const [pay, setPay] = useState({ maorder: '', manv: 'NV01', hinhthuctt: 'Tien mat' });
   const [bill, setBill] = useState<AnyRow | null>(null);
@@ -639,12 +639,13 @@ function Orders({ data, lookups, submit }: { data: AnyRow[]; lookups: AnyRow; su
       madv: 'DV01',
       maghe: '',
       mapr: '',
-      thoigiandat: localDateTimeInput(60)
+      thoigiandat: localDateTimeInput(60),
+      sudunggoi: 'false'
     });
   };
 
   const submitOrder = async (label: string, path: string) => {
-    const result = await submit(label, () => post(path, { ...form, maorder: '' }));
+    const result = await submit(label, () => post(path, { ...form, maorder: '', sudunggoi: form.sudunggoi === 'true' }));
     if (result) {
       setDialog({ title: `${label} thành công`, maorder: (result as AnyRow).maorder, makh: (result as AnyRow).makh, message: (result as AnyRow).message });
       resetOrderForm();
@@ -677,6 +678,10 @@ function Orders({ data, lookups, submit }: { data: AnyRow[]; lookups: AnyRow; su
           <Field label="SĐT" value={form.sdt} onChange={(v) => set('sdt', v)} placeholder="09xxxxxxxx" />
           <SelectField label="Dịch vụ" value={form.madv} onChange={(v) => set('madv', v)}>
             {lookups.services?.map((s: AnyRow) => <option key={s.madv} value={s.madv}>{s.madv} - {s.tendv}</option>)}
+          </SelectField>
+          <SelectField label="Dùng gói" value={form.sudunggoi} onChange={(v) => set('sudunggoi', v)}>
+            <option value="false">Không dùng gói</option>
+            <option value="true">Dùng gói đang hoạt động</option>
           </SelectField>
           <SelectField label="Ghế" value={form.maghe} onChange={(v) => set('maghe', v)}>
             <option value="">Không dùng ghế</option>
@@ -735,6 +740,7 @@ function Orders({ data, lookups, submit }: { data: AnyRow[]; lookups: AnyRow; su
           { key: 'makh', label: 'Mã KH' },
           { key: 'hoten', label: 'Khách' },
           { key: 'tendv', label: 'Dịch vụ' },
+          { key: 'sudunggoi', label: 'Dùng gói', render: (r) => r.sudunggoi ? 'Có' : 'Không' },
           { key: 'status', label: 'Trạng thái' },
           { key: 'maghe', label: 'Ghế' },
           { key: 'mapr', label: 'Phòng' },
@@ -766,13 +772,15 @@ function OrderBill({ bill, loading, error }: { bill: AnyRow | null; loading: boo
         <div><span>Khách</span><strong>{summary.hoten}</strong></div>
         <div><span>Trạng thái</span><strong>{summary.status}</strong></div>
         <div><span>Rank</span><strong>{summary.rank || 'Dong'}</strong></div>
+        <div><span>Dùng gói</span><strong>{summary.sudunggoi ? 'Có' : 'Không'}</strong></div>
+        {summary.sudunggoi && <div><span>Hạn gói/order</span><strong>{dateTime(summary.gioketthuc)}</strong></div>}
       </div>
 
       <div className="bill-section">
         <div className="bill-row">
           <span>Dịch vụ</span>
           <strong>{summary.madv} - {summary.tendv}</strong>
-          <span>{summary.co_goi ? 'Đã có gói' : money(summary.gia_dv)}</span>
+          <span>{summary.sudunggoi ? 'Miễn theo gói' : money(summary.gia_dv)}</span>
         </div>
       </div>
 

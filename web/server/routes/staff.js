@@ -103,6 +103,9 @@ router.post('/assign', asyncHandler(async (req, res) => {
   if (!employeeId) {
     throw new Error('Chua chon nhan vien nhan ca.');
   }
+  if (day < new Date().toLocaleDateString('en-CA')) {
+    throw new Error(`Khong duoc nhan ca trong qua khu: ${shiftName} ngay ${day}.`);
+  }
 
   await query(`
     INSERT INTO calam(ngay, cathu, status)
