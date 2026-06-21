@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { asyncHandler, query, sendOk } from '../db.js';
 
 const router = Router();
+const USE_ACTIVE_PACKAGE = 'USE_ACTIVE_PACKAGE';
 const normalizeText = (value) => {
   if (typeof value !== 'string') return value ?? null;
   const trimmed = value.trim();
@@ -47,7 +48,7 @@ router.get('/me', asyncHandler(async (req, res) => {
       LIMIT 40
     `, [makh]),
     query(`
-      SELECT o.maorder, o.madv, dv.tendv, o.status, o.giobatdau, o.gioketthuc, o.thoigiandat
+      SELECT o.maorder, o.madv, dv.tendv, o.sudunggoi, o.status, o.giobatdau, o.gioketthuc, o.thoigiandat
       FROM orders o
       JOIN dichvu dv ON dv.madv = o.madv
       WHERE o.makh = $1
@@ -117,7 +118,9 @@ router.post('/reserve', asyncHandler(async (req, res) => {
   }
 
   const makh = req.user.makh;
-  const madv = normalizeText(req.body.madv);
+  const rawMadv = normalizeText(req.body.madv);
+  const sudunggoi = rawMadv === USE_ACTIVE_PACKAGE || req.body.sudunggoi === true || req.body.sudunggoi === 'true';
+  const madv = rawMadv === USE_ACTIVE_PACKAGE ? 'DV01' : rawMadv;
   const maghe = normalizeText(req.body.maghe);
   const mapr = normalizeText(req.body.mapr);
   const reservedAt = req.body.thoigiandat ? new Date(req.body.thoigiandat) : new Date();
@@ -155,10 +158,11 @@ router.post('/reserve', asyncHandler(async (req, res) => {
       $5::varchar(6),
       $6::varchar(6),
       $7::varchar(10),
-      $8::timestamp
+      $8::timestamp,
+      $9::boolean
     ) AS message
   `, [
-    maorder, makh, customer.hoten, madv, maghe, mapr, customer.sdt, reservedAt
+    maorder, makh, customer.hoten, madv, maghe, mapr, customer.sdt, reservedAt, sudunggoi
   ]);
   sendOk(res, { ...row, maorder, makh, message: `Dat truoc thanh cong. Ma order: ${maorder}` });
 }));

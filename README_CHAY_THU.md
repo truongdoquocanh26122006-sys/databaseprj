@@ -143,7 +143,7 @@ npm run build
 - Tab `Orders` chi tao order su dung cho ngoi/phong, hien chi cho chon `DV01` va `DV02`.
 - `DV03` va `DV04` la goi hoat dong; dang ky va gia han thuc hien trong tab `Goi`. Chuc nang huy goi da tat de khong phai mo rong schema trang thai.
 - Backend va trigger PostgreSQL deu chan viec tao order moi bang `DV03` hoac `DV04`.
-- Neu khach co goi hoat dong, khi tao order co the chon `Dung goi`. Lua chon nay duoc luu tren tung order bang `orders.sudunggoi`, khong tu dong mien phi tat ca order cua khach.
+- Neu khach co goi hoat dong, trong select `Dich vu` co the chon `Dung goi dang hoat dong`. Lua chon nay duoc luu tren tung order bang `orders.sudunggoi`, khong tu dong mien phi tat ca order cua khach.
 - Order dung goi lay han su dung theo `goihoatdong.ngayketthuc`; khong bi tinh phat qua gio theo moc 3h/5h cua `DV01`/`DV02`. Neu khong chon dung goi, order van tinh tien dich vu va phat qua gio nhu binh thuong.
 
 ## 10. Quy tac kho va vat pham

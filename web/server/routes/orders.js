@@ -3,6 +3,7 @@ import { asyncHandler, query, sendOk } from '../db.js';
 import { cancelExpiredReservations } from '../reservationCleanup.js';
 
 const router = Router();
+const USE_ACTIVE_PACKAGE = 'USE_ACTIVE_PACKAGE';
 
 const normalizeText = (value) => {
   if (typeof value !== 'string') return value ?? null;
@@ -40,11 +41,13 @@ async function generateUnusedCustomerId() {
 async function resolveOrderPayload(body) {
   const maorder = normalizeText(body.maorder) || await generateUnusedOrderId();
   const requestedCustomerId = normalizeText(body.makh);
-  const madv = normalizeText(body.madv);
+  const rawMadv = normalizeText(body.madv);
+  const wantsPackageService = rawMadv === USE_ACTIVE_PACKAGE;
+  const madv = wantsPackageService ? 'DV01' : rawMadv;
   const maghe = normalizeText(body.maghe);
   const mapr = normalizeText(body.mapr);
   const sdt = normalizeText(body.sdt);
-  const sudunggoi = body.sudunggoi === true || body.sudunggoi === 'true';
+  const sudunggoi = wantsPackageService || body.sudunggoi === true || body.sudunggoi === 'true';
   let hoten = normalizeText(body.hoten);
   let makh = requestedCustomerId;
 

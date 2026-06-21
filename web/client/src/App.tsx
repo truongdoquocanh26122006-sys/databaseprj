@@ -60,6 +60,13 @@ const localDateTimeInput = (offsetMinutes = 60) => {
 const packageDurationDays = (madv: string) => madv === 'DV04' ? 7 : 1;
 const packageDurationLabel = (madv: string) => `${packageDurationDays(madv)} ngày`;
 const paramsToQuery = (params: Record<string, string>) => new URLSearchParams(params).toString();
+const USE_ACTIVE_PACKAGE = 'USE_ACTIVE_PACKAGE';
+
+const orderPayload = (form: AnyRow) => ({
+  ...form,
+  madv: form.madv === USE_ACTIVE_PACKAGE ? 'DV01' : form.madv,
+  sudunggoi: form.madv === USE_ACTIVE_PACKAGE
+});
 
 function Table({ rows, columns }: { rows: AnyRow[]; columns: { key: string; label: string; render?: (row: AnyRow) => string }[] }) {
   if (!rows?.length) return <div className="empty">Không có dữ liệu</div>;
@@ -420,7 +427,7 @@ function CustomerHome({ data, submit }: { data?: AnyRow; submit: SubmitFn }) {
   const setItemField = (key: string, value: string) => setItem((old) => ({ ...old, [key]: value }));
 
   const reserveOrder = async () => {
-    const result = await submit('Đặt trước', () => post('/customer/reserve', reserve));
+    const result = await submit('Đặt trước', () => post('/customer/reserve', orderPayload(reserve)));
     if (result) setDialog({ title: 'Đặt trước thành công', maorder: (result as AnyRow).maorder, message: (result as AnyRow).message });
   };
 
@@ -448,6 +455,7 @@ function CustomerHome({ data, submit }: { data?: AnyRow; submit: SubmitFn }) {
         <div className="form-grid">
           <SelectField label="Dịch vụ" value={reserve.madv} onChange={(v) => setReserveField('madv', v)}>
             {data?.services?.map((s: AnyRow) => <option key={s.madv} value={s.madv}>{s.madv} - {s.tendv}</option>)}
+            {customer.co_goi && <option value={USE_ACTIVE_PACKAGE}>Dùng gói đang hoạt động</option>}
           </SelectField>
           <SelectField label="Ghế" value={reserve.maghe} onChange={(v) => setReserve((old) => ({ ...old, maghe: v, mapr: v ? '' : old.mapr }))}>
             <option value="">Không dùng ghế</option>
@@ -514,7 +522,7 @@ function CustomerHome({ data, submit }: { data?: AnyRow; submit: SubmitFn }) {
       <Panel title="Lịch sử orders">
         <Table rows={data?.orders || []} columns={[
           { key: 'maorder', label: 'Order' },
-          { key: 'tendv', label: 'Dịch vụ' },
+          { key: 'tendv', label: 'Dịch vụ', render: (r) => r.sudunggoi ? 'Dùng gói đang hoạt động' : r.tendv },
           { key: 'status', label: 'Trạng thái' },
           { key: 'giobatdau', label: 'Bắt đầu', render: (r) => dateTime(r.giobatdau || r.thoigiandat) },
           { key: 'gioketthuc', label: 'Kết thúc', render: (r) => dateTime(r.gioketthuc) }
@@ -596,7 +604,7 @@ function Overview({ data }: { data?: AnyRow }) {
 }
 
 function Orders({ data, lookups, submit }: { data: AnyRow[]; lookups: AnyRow; submit: SubmitFn }) {
-  const [form, setForm] = useState({ maorder: '', makh: '', hoten: '', sdt: '', madv: 'DV01', maghe: '', mapr: '', thoigiandat: localDateTimeInput(60), sudunggoi: 'false' });
+  const [form, setForm] = useState({ maorder: '', makh: '', hoten: '', sdt: '', madv: 'DV01', maghe: '', mapr: '', thoigiandat: localDateTimeInput(60) });
   const [item, setItem] = useState({ maorder: '', mavp: 'VP01', soluong: '1' });
   const [pay, setPay] = useState({ maorder: '', manv: 'NV01', hinhthuctt: 'Tien mat' });
   const [bill, setBill] = useState<AnyRow | null>(null);
@@ -639,13 +647,12 @@ function Orders({ data, lookups, submit }: { data: AnyRow[]; lookups: AnyRow; su
       madv: 'DV01',
       maghe: '',
       mapr: '',
-      thoigiandat: localDateTimeInput(60),
-      sudunggoi: 'false'
+      thoigiandat: localDateTimeInput(60)
     });
   };
 
   const submitOrder = async (label: string, path: string) => {
-    const result = await submit(label, () => post(path, { ...form, maorder: '', sudunggoi: form.sudunggoi === 'true' }));
+    const result = await submit(label, () => post(path, { ...orderPayload(form), maorder: '' }));
     if (result) {
       setDialog({ title: `${label} thành công`, maorder: (result as AnyRow).maorder, makh: (result as AnyRow).makh, message: (result as AnyRow).message });
       resetOrderForm();
@@ -678,10 +685,7 @@ function Orders({ data, lookups, submit }: { data: AnyRow[]; lookups: AnyRow; su
           <Field label="SĐT" value={form.sdt} onChange={(v) => set('sdt', v)} placeholder="09xxxxxxxx" />
           <SelectField label="Dịch vụ" value={form.madv} onChange={(v) => set('madv', v)}>
             {lookups.services?.map((s: AnyRow) => <option key={s.madv} value={s.madv}>{s.madv} - {s.tendv}</option>)}
-          </SelectField>
-          <SelectField label="Dùng gói" value={form.sudunggoi} onChange={(v) => set('sudunggoi', v)}>
-            <option value="false">Không dùng gói</option>
-            <option value="true">Dùng gói đang hoạt động</option>
+            <option value={USE_ACTIVE_PACKAGE}>Dùng gói đang hoạt động</option>
           </SelectField>
           <SelectField label="Ghế" value={form.maghe} onChange={(v) => set('maghe', v)}>
             <option value="">Không dùng ghế</option>
@@ -739,7 +743,7 @@ function Orders({ data, lookups, submit }: { data: AnyRow[]; lookups: AnyRow; su
           { key: 'maorder', label: 'Order' },
           { key: 'makh', label: 'Mã KH' },
           { key: 'hoten', label: 'Khách' },
-          { key: 'tendv', label: 'Dịch vụ' },
+          { key: 'tendv', label: 'Dịch vụ', render: (r) => r.sudunggoi ? 'Dùng gói đang hoạt động' : r.tendv },
           { key: 'sudunggoi', label: 'Dùng gói', render: (r) => r.sudunggoi ? 'Có' : 'Không' },
           { key: 'status', label: 'Trạng thái' },
           { key: 'maghe', label: 'Ghế' },
@@ -779,7 +783,7 @@ function OrderBill({ bill, loading, error }: { bill: AnyRow | null; loading: boo
       <div className="bill-section">
         <div className="bill-row">
           <span>Dịch vụ</span>
-          <strong>{summary.madv} - {summary.tendv}</strong>
+          <strong>{summary.sudunggoi ? 'Dùng gói đang hoạt động' : `${summary.madv} - ${summary.tendv}`}</strong>
           <span>{summary.sudunggoi ? 'Miễn theo gói' : money(summary.gia_dv)}</span>
         </div>
       </div>
