@@ -4,15 +4,7 @@ Thu muc nay gom:
 
 - `web/`: source code web StudySpace Admin.
 - `database/namt_studyspace_latest_20260604.sql`: dump PostgreSQL moi nhat, gom schema, function, trigger va data demo.
-- `database/fixed_warehouse_inventory_migration_20260604.sql`: migration tham khao cho thay doi kho co dinh.
-- `database/add_expired_reservation_cleanup.sql`: function huy order dat truoc qua 30 phut, dung cho job tu dong cua backend.
-- `database/add_rank_gift_log.sql`: bang log qua tang rank-up va function cap nhat de web hien duoc tab `Qua rank`.
-- `database/fix_monthly_honors_awards.sql`: them ky thang/nam cho vinh danh va chan thuong trung.
-- `database/allow_manual_item_warehouse.sql`: tao vat pham bat buoc chon kho, database chan doi kho sau khi tao.
-- `database/add_accounts_auth.sql`: bang tai khoan dang nhap, seed tai khoan nhan vien mac dinh.
-- `database/fix_seat_suggestion_groups.sql`: sua goi y xep cho nhieu nguoi phong chung va loai cho bat ky.
-- `database/fix_understaffed_shift_view.sql`: sua ca thieu nguoi de luon hien lich 1 thang toi; ca chua co nhan vien se hien `Chua co nguoi`.
-- `database/fix_package_order_usage_and_shift_guard.sql`: them lua chon dung goi theo tung order, han dung goi theo ngay ket thuc goi, va chan nhan ca trong qua khu.
+- `database/studyspace_after_dump_patches.sql`: tat ca patch sau dump, gom tai khoan, qua rank, goi/order, kho, ca lam, bao cao va cac trigger/fix moi.
 
 ## 1. Yeu cau tren may nguoi chay
 
@@ -46,20 +38,7 @@ Neu may da co database `namt_studyspace` cu, nen drop va tao lai:
 dropdb -U postgres --if-exists namt_studyspace
 createdb -U postgres namt_studyspace
 psql -U postgres -d namt_studyspace -f database/namt_studyspace_latest_20260604.sql
-psql -U postgres -d namt_studyspace -f database/add_expired_reservation_cleanup.sql
-psql -U postgres -d namt_studyspace -f database/add_rank_gift_log.sql
-psql -U postgres -d namt_studyspace -f database/fix_dv03_package_duration.sql
-psql -U postgres -d namt_studyspace -f database/block_package_services_in_orders.sql
-psql -U postgres -d namt_studyspace -f database/fix_monthly_honors_awards.sql
-psql -U postgres -d namt_studyspace -f database/allow_manual_item_warehouse.sql
-psql -U postgres -d namt_studyspace -f database/add_accounts_auth.sql
-psql -U postgres -d namt_studyspace -f database/fix_seat_suggestion_groups.sql
-psql -U postgres -d namt_studyspace -f database/fix_early_leave_duration.sql
-psql -U postgres -d namt_studyspace -f database/fix_understaffed_shift_view.sql
-psql -U postgres -d namt_studyspace -f database/fix_room_occupancy_sync.sql
-psql -U postgres -d namt_studyspace -f database/add_overtime_penalty.sql
-psql -U postgres -d namt_studyspace -f database/reclaim_overdue_places_when_full.sql
-psql -U postgres -d namt_studyspace -f database/fix_package_order_usage_and_shift_guard.sql
+psql -U postgres -d namt_studyspace -f database/studyspace_after_dump_patches.sql
 ```
 
 Neu PostgreSQL cua may dung port/user khac, sua lai `-U postgres` hoac them `-h localhost -p 5432`.
@@ -140,6 +119,7 @@ Chay lai buoc tao database:
 ```bash
 createdb -U postgres namt_studyspace
 psql -U postgres -d namt_studyspace -f database/namt_studyspace_latest_20260604.sql
+psql -U postgres -d namt_studyspace -f database/studyspace_after_dump_patches.sql
 ```
 
 ### Port 5173 hoac 3001 dang bi chiem
