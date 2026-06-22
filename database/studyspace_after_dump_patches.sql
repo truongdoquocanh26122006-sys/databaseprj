@@ -794,6 +794,7 @@ LANGUAGE plpgsql
 AS $function$
 DECLARE
     v_makh varchar(6); v_madv varchar(6); v_status varchar(20);
+    v_mapr varchar(6); v_hesogia numeric := 1;
     v_gia_dv numeric; v_tong_vp numeric; v_tong_hd numeric;
     v_discount numeric; v_rank varchar(10);
     v_co_goi boolean; v_thongbao text;
@@ -1024,6 +1025,12 @@ AS $function$
 DECLARE
     v_goi_ket_thuc timestamp;
 BEGIN
+    IF NEW.mapr IS NOT NULL AND NEW.sudunggoi THEN
+        NEW.sudunggoi := false;
+        NEW.gioketthuc := NULL;
+        RETURN NEW;
+    END IF;
+
     IF NEW.sudunggoi THEN
         v_goi_ket_thuc := public.fn_order_goi_ket_thuc(NEW.makh);
         IF v_goi_ket_thuc IS NULL THEN
@@ -1041,7 +1048,7 @@ $function$;
 
 DROP TRIGGER IF EXISTS trg_orders_validate_sudunggoi ON public.orders;
 CREATE TRIGGER trg_orders_validate_sudunggoi
-BEFORE INSERT OR UPDATE OF sudunggoi, makh, gioketthuc, status
+BEFORE INSERT OR UPDATE OF sudunggoi, makh, gioketthuc, status, mapr
 ON public.orders
 FOR EACH ROW
 EXECUTE FUNCTION public.fn_orders_validate_sudunggoi();
@@ -1175,6 +1182,7 @@ AS $function$
 DECLARE
     v_thu_hoi text;
     v_goi_ket_thuc timestamp;
+    v_sudunggoi boolean;
 BEGIN
     IF p_madv IN ('DV03', 'DV04') THEN
         RAISE EXCEPTION 'DV03/DV04 la goi hoat dong. Hay dang ky hoac gia han trong tab Goi, khong tao trong Orders.';
@@ -1182,7 +1190,9 @@ BEGIN
 
     PERFORM public.fn_upsert_khachhang(p_makh, p_hoten, p_sdt);
 
-    IF p_sudunggoi THEN
+    v_sudunggoi := COALESCE(p_sudunggoi, false) AND p_mapr IS NULL;
+
+    IF v_sudunggoi THEN
         v_goi_ket_thuc := public.fn_order_goi_ket_thuc(p_makh);
         IF v_goi_ket_thuc IS NULL THEN
             RAISE EXCEPTION 'Khach hang % khong co goi hoat dong de dung cho order %.', p_makh, p_maorder;
@@ -1192,13 +1202,13 @@ BEGIN
     v_thu_hoi := public.fn_thu_hoi_cho_qua_gio(p_maghe, p_mapr);
 
     INSERT INTO public.orders(maorder, makh, madv, maghe, mapr, status, thoigiandat, giobatdau, gioketthuc, sudunggoi)
-    VALUES (p_maorder, p_makh, p_madv, p_maghe, p_mapr, 'Dang dung', NOW(), NOW(), v_goi_ket_thuc, p_sudunggoi);
+    VALUES (p_maorder, p_makh, p_madv, p_maghe, p_mapr, 'Dang dung', NOW(), NOW(), v_goi_ket_thuc, v_sudunggoi);
 
     PERFORM public.fn_dong_bo_trang_thai_phong();
 
     RETURN COALESCE(NULLIF(v_thu_hoi, '') || ' ', '') ||
            'Tao order ' || p_maorder || ' thanh cong cho KH ' || p_makh ||
-           CASE WHEN p_sudunggoi THEN ' (dung goi den ' || to_char(v_goi_ket_thuc, 'YYYY-MM-DD HH24:MI') || ')' ELSE '' END;
+           CASE WHEN v_sudunggoi THEN ' (dung goi den ' || to_char(v_goi_ket_thuc, 'YYYY-MM-DD HH24:MI') || ')' ELSE '' END;
 END;
 $function$;
 
@@ -1220,6 +1230,7 @@ LANGUAGE plpgsql
 AS $function$
 DECLARE
     v_goi_ket_thuc timestamp;
+    v_sudunggoi boolean;
 BEGIN
     IF p_madv IN ('DV03', 'DV04') THEN
         RAISE EXCEPTION 'DV03/DV04 la goi hoat dong. Hay dang ky hoac gia han trong tab Goi, khong tao trong Orders.';
@@ -1227,7 +1238,9 @@ BEGIN
 
     PERFORM public.fn_upsert_khachhang(p_makh, p_hoten, p_sdt);
 
-    IF p_sudunggoi THEN
+    v_sudunggoi := COALESCE(p_sudunggoi, false) AND p_mapr IS NULL;
+
+    IF v_sudunggoi THEN
         v_goi_ket_thuc := public.fn_order_goi_ket_thuc(p_makh);
         IF v_goi_ket_thuc IS NULL THEN
             RAISE EXCEPTION 'Khach hang % khong co goi hoat dong de dung cho order %.', p_makh, p_maorder;
@@ -1235,11 +1248,11 @@ BEGIN
     END IF;
 
     INSERT INTO public.orders(maorder, makh, madv, maghe, mapr, status, thoigiandat, gioketthuc, sudunggoi)
-    VALUES (p_maorder, p_makh, p_madv, p_maghe, p_mapr, 'Dat truoc', p_thoigiandat, v_goi_ket_thuc, p_sudunggoi);
+    VALUES (p_maorder, p_makh, p_madv, p_maghe, p_mapr, 'Dat truoc', p_thoigiandat, v_goi_ket_thuc, v_sudunggoi);
 
     RETURN 'Dat truoc ' || p_maorder || ' thanh cong luc ' ||
            to_char(p_thoigiandat, 'YYYY-MM-DD HH24:MI') ||
-           CASE WHEN p_sudunggoi THEN '. Order dung goi den ' || to_char(v_goi_ket_thuc, 'YYYY-MM-DD HH24:MI') ELSE '' END ||
+           CASE WHEN v_sudunggoi THEN '. Order dung goi den ' || to_char(v_goi_ket_thuc, 'YYYY-MM-DD HH24:MI') ELSE '' END ||
            '. Vui long check-in trong vong 30 phut tu gio hen.';
 END;
 $function$;
@@ -1305,8 +1318,8 @@ DECLARE
     v_sudunggoi boolean; v_thongbao text;
     v_giobatdau timestamp; v_phat_qua_gio numeric;
 BEGIN
-    SELECT makh, madv, status, giobatdau, sudunggoi
-    INTO v_makh, v_madv, v_status, v_giobatdau, v_sudunggoi
+    SELECT makh, madv, status, giobatdau, sudunggoi, mapr
+    INTO v_makh, v_madv, v_status, v_giobatdau, v_sudunggoi, v_mapr
     FROM public.orders WHERE maorder = p_maorder;
 
     IF NOT FOUND THEN
@@ -1317,6 +1330,11 @@ BEGIN
     END IF;
 
     SELECT giagoi::numeric INTO v_gia_dv FROM public.dichvu WHERE madv = v_madv;
+    SELECT COALESCE(pr.hesogia, 1) INTO v_hesogia
+    FROM public.phongrieng pr
+    WHERE pr.mapr = v_mapr;
+    v_gia_dv := v_gia_dv * COALESCE(v_hesogia, 1);
+
     SELECT COALESCE(SUM(vp.giatien::numeric * ct.soluong), 0) INTO v_tong_vp
     FROM public.chitietorder ct JOIN public.vatpham vp ON ct.mavp = vp.mavp
     WHERE ct.maorder = p_maorder;
@@ -1387,4 +1405,3 @@ END;
 $function$;
 
 COMMIT;
-
