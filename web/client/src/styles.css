@@ -236,7 +236,9 @@ main {
 }
 
 .dialog {
-  width: min(420px, 100%);
+  width: min(560px, 100%);
+  max-height: min(78vh, 680px);
+  overflow: auto;
   background: white;
   border: 1px solid #dfe6ee;
   border-radius: 8px;
@@ -254,9 +256,33 @@ main {
   color: #506071;
 }
 
+.dialog pre {
+  margin: 10px 0 14px;
+  padding: 12px;
+  border-radius: 6px;
+  background: #f7f9fb;
+  color: #233449;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: inherit;
+  line-height: 1.45;
+}
+
 .dialog strong {
   color: #0f4f8f;
   font-size: 20px;
+}
+
+.dialog-success {
+  border-color: #b7e2c3;
+}
+
+.dialog-error {
+  border-color: #f1b5b5;
+}
+
+.dialog-error h2 {
+  color: #9b1c1c;
 }
 
 .metric-grid {
@@ -412,6 +438,11 @@ td {
   text-align: left;
   vertical-align: top;
   white-space: nowrap;
+}
+
+tr.gift-pending-row td {
+  background: #fff0f6;
+  border-bottom-color: #f7cfe0;
 }
 
 th {

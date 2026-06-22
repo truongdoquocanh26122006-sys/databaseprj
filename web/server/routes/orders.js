@@ -47,7 +47,9 @@ async function resolveOrderPayload(body) {
   const maghe = normalizeText(body.maghe);
   const mapr = normalizeText(body.mapr);
   const sdt = normalizeText(body.sdt);
-  const sudunggoi = wantsPackageService || body.sudunggoi === true || body.sudunggoi === 'true';
+  const usesPrivateRoom = Boolean(mapr);
+  const requestedPackageUse = wantsPackageService || body.sudunggoi === true || body.sudunggoi === 'true';
+  const sudunggoi = !usesPrivateRoom && requestedPackageUse;
   let hoten = normalizeText(body.hoten);
   let makh = requestedCustomerId;
 
@@ -102,9 +104,20 @@ router.get('/', asyncHandler(async (req, res) => {
 router.get('/:maorder/bill', asyncHandler(async (req, res) => {
   const [summary] = await query(`
     SELECT o.maorder, o.status, o.makh, kh.hoten, kh.rank, o.giobatdau, o.gioketthuc, o.sudunggoi,
-           o.madv, dv.tendv, dv.giagoi::numeric AS gia_dv,
+           o.madv, dv.tendv, dv.giagoi::numeric * COALESCE(pr.hesogia, 1) AS gia_dv,
            fn_tinh_discount(o.makh)::numeric AS discount,
            fn_kiem_tra_goi(o.makh) AS co_goi,
+           COALESCE((
+             SELECT l.giatri_giam::numeric
+             FROM lichsu_quatang l
+             WHERE l.loai = 'Vinh danh'
+               AND l.makh = o.makh
+               AND l.hang BETWEEN 1 AND 5
+               AND l.giatri_giam > 0
+               AND l.dadung = false
+             ORDER BY l.thoigiantang, l.id
+             LIMIT 1
+           ), 0) AS fixed_discount,
            CASE
              WHEN o.sudunggoi THEN 0
              ELSE fn_tinh_phat_qua_gio(o.madv, o.giobatdau, NOW()::timestamp)::numeric
@@ -112,6 +125,7 @@ router.get('/:maorder/bill', asyncHandler(async (req, res) => {
     FROM orders o
     JOIN khachhang kh ON kh.makh = o.makh
     JOIN dichvu dv ON dv.madv = o.madv
+    LEFT JOIN phongrieng pr ON pr.mapr = o.mapr
     WHERE o.maorder = $1
   `, [req.params.maorder]);
 
@@ -136,8 +150,11 @@ router.get('/:maorder/bill', asyncHandler(async (req, res) => {
   const tienVp = items.reduce((sum, item) => sum + Number(item.thanhtien || 0), 0);
   const phatQuaGio = Number(summary.phat_qua_gio || 0);
   const discount = Number(summary.discount || 0);
+  const fixedDiscountAvailable = Number(summary.fixed_discount || 0);
   const tongTruocGiam = tienDv + tienVp + phatQuaGio;
-  const tongHd = Math.round(tongTruocGiam * (1 - discount));
+  const tongSauRankGiam = Math.round(tongTruocGiam * (1 - discount));
+  const fixedDiscount = Math.min(fixedDiscountAvailable, tongSauRankGiam);
+  const tongHd = Math.max(0, tongSauRankGiam - fixedDiscount);
 
   sendOk(res, {
     summary,
@@ -149,6 +166,8 @@ router.get('/:maorder/bill', asyncHandler(async (req, res) => {
       tong_truoc_giam: tongTruocGiam,
       discount,
       discount_percent: Math.round(discount * 100),
+      fixed_discount: fixedDiscount,
+      tong_sau_rank_giam: tongSauRankGiam,
       tong_hd: tongHd
     }
   });

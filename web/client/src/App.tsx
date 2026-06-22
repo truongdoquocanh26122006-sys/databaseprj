@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import {
   Armchair,
   BarChart3,
@@ -62,13 +62,20 @@ const packageDurationLabel = (madv: string) => `${packageDurationDays(madv)} ng�
 const paramsToQuery = (params: Record<string, string>) => new URLSearchParams(params).toString();
 const USE_ACTIVE_PACKAGE = 'USE_ACTIVE_PACKAGE';
 
-const orderPayload = (form: AnyRow) => ({
-  ...form,
-  madv: form.madv === USE_ACTIVE_PACKAGE ? 'DV01' : form.madv,
-  sudunggoi: form.madv === USE_ACTIVE_PACKAGE
-});
+const orderPayload = (form: AnyRow) => {
+  const usesPrivateRoom = Boolean(form.mapr);
+  return {
+    ...form,
+    madv: form.madv === USE_ACTIVE_PACKAGE ? 'DV01' : form.madv,
+    sudunggoi: !usesPrivateRoom && form.madv === USE_ACTIVE_PACKAGE
+  };
+};
 
-function Table({ rows, columns }: { rows: AnyRow[]; columns: { key: string; label: string; render?: (row: AnyRow) => string }[] }) {
+function Table({ rows, columns, rowClassName }: {
+  rows: AnyRow[];
+  columns: { key: string; label: string; render?: (row: AnyRow) => ReactNode }[];
+  rowClassName?: (row: AnyRow) => string;
+}) {
   if (!rows?.length) return <div className="empty">Không có dữ liệu</div>;
   return (
     <div className="table-wrap">
@@ -78,7 +85,7 @@ function Table({ rows, columns }: { rows: AnyRow[]; columns: { key: string; labe
         </thead>
         <tbody>
           {rows.map((row, idx) => (
-            <tr key={idx}>
+            <tr key={idx} className={rowClassName?.(row) || undefined}>
               {columns.map((col) => <td key={col.key}>{col.render ? col.render(row) : String(row[col.key] ?? '')}</td>)}
             </tr>
           ))}
@@ -147,6 +154,7 @@ export function App() {
   const [customerData, setCustomerData] = useState<AnyRow>({});
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [dialog, setDialog] = useState<AnyRow | null>(null);
   const [loading, setLoading] = useState(false);
   const activeTabs = auth?.role === 'staff' ? tabs : customerTabs;
 
@@ -226,17 +234,18 @@ export function App() {
 
   useEffect(() => {
     if (!message && !error) return;
-    const timeout = window.setTimeout(() => {
-      setMessage('');
-      setError('');
-    }, 12000);
-    return () => window.clearTimeout(timeout);
+    setDialog({
+      title: error ? 'Có lỗi xảy ra' : 'Thao tác thành công',
+      kind: error ? 'error' : 'success',
+      message: error || message
+    });
   }, [message, error]);
 
   const switchTab = (tabId: string) => {
     setActiveTab(tabId);
     setMessage('');
     setError('');
+    setDialog(null);
   };
 
   const login = async (payload: Record<string, unknown>) => {
@@ -272,6 +281,7 @@ export function App() {
         ? ((result as AnyRow).message || (result as AnyRow).receipt || `${label} thành công`)
         : `${label} thành công`;
       setMessage(String(text));
+      setDialog({ title: `${label} thành công`, kind: 'success', message: String(text) });
       if (auth?.role === 'staff') {
         await load();
       } else {
@@ -282,7 +292,9 @@ export function App() {
       }
       return result || true;
     } catch (err) {
-      setError((err as Error).message);
+      const text = (err as Error).message;
+      setError(text);
+      setDialog({ title: `${label} thất bại`, kind: 'error', message: text });
       return null;
     }
   };
@@ -334,8 +346,11 @@ export function App() {
           </button>
         </header>
 
-        {message && <Notice kind="success" text={message} onClose={() => setMessage('')} />}
-        {error && <Notice kind="error" text={error} onClose={() => setError('')} />}
+        {dialog && <ResultDialog data={dialog} onClose={() => {
+          setDialog(null);
+          setMessage('');
+          setError('');
+        }} />}
 
         {activeTab === 'customer-home' && <CustomerHome data={customerData} submit={submit} />}
         {activeTab === 'overview' && <Overview data={data.dashboard} />}
@@ -546,11 +561,11 @@ function CustomerHome({ data, submit }: { data?: AnyRow; submit: SubmitFn }) {
 function ResultDialog({ data, onClose }: { data: AnyRow; onClose: () => void }) {
   return (
     <div className="dialog-backdrop">
-      <div className="dialog">
+      <div className={`dialog ${data.kind === 'error' ? 'dialog-error' : 'dialog-success'}`}>
         <h2>{data.title || 'Thông báo'}</h2>
         {data.maorder && <p>Mã order: <strong>{data.maorder}</strong></p>}
         {data.id && <p>ID gói: <strong>{data.id}</strong></p>}
-        {data.message && <p>{data.message}</p>}
+        {data.message && <pre>{data.message}</pre>}
         <button onClick={onClose}>Đóng</button>
       </div>
     </div>
@@ -611,7 +626,11 @@ function Orders({ data, lookups, submit }: { data: AnyRow[]; lookups: AnyRow; su
   const [billLoading, setBillLoading] = useState(false);
   const [billError, setBillError] = useState('');
   const [dialog, setDialog] = useState<AnyRow | null>(null);
-  const set = (key: string, value: string) => setForm((old) => ({ ...old, [key]: value }));
+  const set = (key: string, value: string) => setForm((old) => ({
+    ...old,
+    [key]: value,
+    ...(key === 'mapr' && value && old.madv === USE_ACTIVE_PACKAGE ? { madv: 'DV01' } : {})
+  }));
 
   const refreshBill = async (maorder: string) => {
     if (!maorder) {
@@ -801,6 +820,8 @@ function OrderBill({ bill, loading, error }: { bill: AnyRow | null; loading: boo
         <div><span>Tiền vật phẩm</span><strong>{money(totals.tien_vp)}</strong></div>
         <div><span>Phạt quá giờ</span><strong>{money(totals.phat_qua_gio)}</strong></div>
         <div><span>Giảm giá</span><strong>{Number(totals.discount_percent || 0)}%</strong></div>
+        <div><span>Sau giảm rank</span><strong>{money(totals.tong_sau_rank_giam)}</strong></div>
+        <div><span>Giảm vinh danh</span><strong>-{money(totals.fixed_discount)}</strong></div>
         <div className="grand"><span>Tổng hóa đơn</span><strong>{money(totals.tong_hd)}</strong></div>
       </div>
     </div>
@@ -1065,7 +1086,7 @@ function Packages({ rows, lookups, submit }: { rows: AnyRow[]; lookups: AnyRow; 
 
 function RankGifts({ data, lookups, submit }: { data?: AnyRow; lookups: AnyRow; submit: SubmitFn }) {
   const customers = data?.customers || lookups.customers || [];
-  const [params, setParams] = useState({ thang: '5', nam: '2026', makh: '', hang: '1' });
+  const [params, setParams] = useState({ makh: '', hang: '1' });
   const [leaderboard, setLeaderboard] = useState<AnyRow[]>([]);
   const [customerInfo, setCustomerInfo] = useState<AnyRow | null>(null);
   const [error, setError] = useState('');
@@ -1084,8 +1105,7 @@ function RankGifts({ data, lookups, submit }: { data?: AnyRow; lookups: AnyRow; 
   };
 
   const loadLeaderboard = () => run(async () => {
-    const query = paramsToQuery({ thang: params.thang, nam: params.nam });
-    setLeaderboard(await api<AnyRow[]>(`/rank-gifts/leaderboard?${query}`));
+    setLeaderboard(await api<AnyRow[]>('/rank-gifts/leaderboard'));
   });
 
   const checkCustomer = () => run(async () => {
@@ -1095,12 +1115,13 @@ function RankGifts({ data, lookups, submit }: { data?: AnyRow; lookups: AnyRow; 
 
   const awardMonthly = async () => {
     const ok = await submit('Phát thưởng vinh danh', () => post('/rank-gifts/award-monthly', {
-      thang: params.thang,
-      nam: params.nam,
       hang: params.hang
     }));
     if (ok) await loadLeaderboard();
   };
+  const currentRewardPeriod = leaderboard[0]?.thang && leaderboard[0]?.nam
+    ? `${leaderboard[0].thang}/${leaderboard[0].nam}`
+    : 'theo tháng/năm hiện tại của database';
 
   return (
     <div className="grid two">
@@ -1182,10 +1203,12 @@ function RankGifts({ data, lookups, submit }: { data?: AnyRow; lookups: AnyRow; 
       </Panel>
 
       <Panel title="Vinh danh tháng">
-        <p className="hint">Chọn tháng/năm để xếp hạng. Khi bấm phát thưởng, hệ thống lấy đúng khách ở hạng đó và chặn thưởng lại cùng hạng trong cùng tháng.</p>
+        <p className="hint">Bảng bên dưới luôn lấy top 20 theo điểm tích lũy hiện tại. Kỳ thưởng được ghi theo tháng/năm hiện tại từ database, chỉ để ghi log và chặn tặng trùng, không dùng để tạo lại bảng xếp hạng theo thời điểm cũ.</p>
         <div className="form-grid">
-          <Field label="Tháng" value={params.thang} onChange={(v) => set('thang', v)} type="number" />
-          <Field label="Năm" value={params.nam} onChange={(v) => set('nam', v)} type="number" />
+          <label className="field">
+            <span>Kỳ thưởng</span>
+            <input value={currentRewardPeriod} readOnly />
+          </label>
           <Field label="Hạng thưởng" value={params.hang} onChange={(v) => set('hang', v)} type="number" />
         </div>
         <div className="actions">
@@ -1197,8 +1220,9 @@ function RankGifts({ data, lookups, submit }: { data?: AnyRow; lookups: AnyRow; 
           { key: 'makh', label: 'Mã KH' },
           { key: 'hoten', label: 'Khách' },
           { key: 'diem', label: 'Điểm' },
-          { key: 'uu_dai', label: 'Ưu đãi' }
-        ]} />
+          { key: 'uu_dai', label: 'Ưu đãi' },
+          { key: 'trang_thai', label: 'Trạng thái', render: (r) => r.chua_nhan_thuong ? 'Chưa phát' : `Đã phát${r.thuong_da_dung ? ' / đã dùng' : ''}` }
+        ]} rowClassName={(row) => row.chua_nhan_thuong ? 'gift-pending-row' : ''} />
       </Panel>
     </div>
   );
